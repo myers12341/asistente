@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JARVIS AI - RAG Personalizado</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            background-color: #030712;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(0, 243, 255, 0.1) 0%, transparent 65%),
+                linear-gradient(rgba(0, 243, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.03) 1px, transparent 1px);
+            background-size: 100% 100%, 30px 30px, 30px 30px;
+            color: #00f3ff;
+            font-family: 'Orbitron', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .hud-card {
+            width: 100%;
+            max-width: 450px;
+            background: rgba(6, 11, 25, 0.85);
+            border: 1px solid rgba(0, 243, 255, 0.4);
+            border-radius: 24px;
+            padding: 30px 20px;
+            box-shadow: 0 0 40px rgba(0, 243, 255, 0.2);
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .hud-title {
+            font-size: 12px;
+            letter-spacing: 3px;
+            color: #64748b;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            background: #00f3ff;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #00f3ff;
+        }
+
+        .reactor {
+            position: relative;
+            width: 160px;
+            height: 160px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 25px;
+        }
+
+        .ring-1 {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 2px dashed rgba(0, 243, 255, 0.5);
+            border-radius: 50%;
+            animation: rotate 10s linear infinite;
+        }
+
+        .ring-2 {
+            position: absolute;
+            width: 75%;
+            height: 75%;
+            border: 2px solid transparent;
+            border-top: 2px solid #00f3ff;
+            border-bottom: 2px solid #00f3ff;
+            border-radius: 50%;
+            animation: rotate-rev 5s linear infinite;
+        }
+
+        .core {
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle, #00f3ff 0%, #030712 75%);
+            border-radius: 50%;
+            box-shadow: 0 0 30px #00f3ff;
+            transition: all 0.3s ease;
+        }
+
+        .listening .core {
+            background: radial-gradient(circle, #10b981 0%, #030712 75%);
+            box-shadow: 0 0 50px #10b981;
+        }
+        .speaking .core {
+            background: radial-gradient(circle, #ff0055 0%, #030712 75%);
+            box-shadow: 0 0 50px #ff0055;
+        }
+
+        .btn-talk {
+            background: transparent;
+            color: #00f3ff;
+            border: 1px solid #00f3ff;
+            padding: 16px 30px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .btn-talk:hover {
+            background: #00f3ff;
+            color: #030712;
+            box-shadow: 0 0 30px #00f3ff;
+        }
+
+        #status {
+            font-size: 12px;
+            color: #94a3b8;
+            line-height: 1.6;
+            max-height: 150px;
+            overflow-y: auto;
+            text-align: justify;
+            padding: 0 10px;
+        }
+
+        @keyframes rotate { 100% { transform: rotate(360deg); } }
+        @keyframes rotate-rev { 100% { transform: rotate(-360deg); } }
+    </style>
+</head>
+<body>
+
+    <div class="hud-card" id="hud">
+        <div class="hud-title">
+            <div class="dot"></div>
+            <span>JARVIS SYSTEM // RAG CONOCIMIENTO</span>
+        </div>
+
+        <div class="reactor">
+            <div class="ring-1"></div>
+            <div class="ring-2"></div>
+            <div class="core"></div>
+        </div>
+
+        <button class="btn-talk" onclick="iniciarEscucha()">[ HABLAR CON JARVIS ]</button>
+
+        <p id="status">Presiona el botón para hablar...</p>
+    </div>
+
+    <script>
+        // PEGA AQUÍ TU CLAVE DE OPENROUTER (sk-or-v1-...)
+        const OPENROUTER_API_KEY = "PEGA_AQUI_TU_CLAVE_OPENROUTER"; 
+
+        // 🧠 AQUÍ MODIFICAS Y AÑADES TUS PROPIOS CONOCIMIENTOS (RAG)
+        // 🧠 BASE DE CONOCIMIENTO PERSONALIZADA DE HADRIEN (RAG)
+const BASE_DE_CONOCIMIENTO = [
+    "El usuario principal es Hadrien, un niño de 10 años que está en 4° de primaria.",
+    "El cumpleaños de Hadrien es el 13 de septiembre.",
+    "Su familia se compone de su mamá Sonia, su papá Anthony, su hermano Dharien y su hermana Nicol.",
+    "Tienen un perro en casa que se llama Soli.",
+    "A Hadrien le encanta jugar Roblox, especialmente a Escape del Teclado y varios juegos populares de la plataforma.",
+    "Le gusta jugar al FIFA y su equipo favorito de fútbol es el Real Madrid.",
+    "Su hermano Dharien creó este sistema JARVIS especialmente para él como un tutor y compañero gamer."
+];
+
+        const hud = document.getElementById('hud');
+        const status = document.getElementById('status');
+
+        function hablar(texto) {
+            status.innerText = texto;
+            hud.className = 'hud-card speaking';
+
+            const synth = window.speechSynthesis;
+            synth.cancel();
+
+            const utterThis = new SpeechSynthesisUtterance(texto);
+            utterThis.lang = 'es-ES';
+            utterThis.pitch = 1.0; 
+            utterThis.rate = 1.0; 
+
+            utterThis.onend = () => { hud.className = 'hud-card'; };
+            synth.speak(utterThis);
+        }
+
+        function iniciarEscucha() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("Usa Google Chrome en tu celular para activar el micrófono.");
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'es-ES';
+
+            recognition.onstart = () => {
+                status.innerText = "Escuchando...";
+                hud.className = 'hud-card listening';
+            };
+
+            recognition.onresult = async (event) => {
+                const comando = event.results[0][0].transcript;
+                status.innerText = 'Procesando: "' + comando + '"...';
+                hud.className = 'hud-card';
+
+                const cmd = comando.toLowerCase();
+
+                if (cmd.includes("busca en google") || cmd.includes("buscar en google")) {
+                    let termino = cmd.replace(/busca en google|buscar en google/gi, "").trim();
+                    hablar("Buscando " + termino + " en Google.");
+                    setTimeout(() => window.open(`https://www.google.com/search?q=${encodeURIComponent(termino)}`, '_blank'), 1500);
+                    return;
+                }
+
+                if (cmd.includes("busca en youtube") || cmd.includes("video de")) {
+                    let termino = cmd.replace(/busca en youtube|video de/gi, "").trim();
+                    hablar("Buscando videos de " + termino + " en YouTube.");
+                    setTimeout(() => window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(termino)}`, '_blank'), 1500);
+                    return;
+                }
+
+                await consultarIAConRAG(comando);
+            };
+
+            recognition.onerror = () => {
+                hud.className = 'hud-card';
+                status.innerText = "No logré escucharte. Intenta de nuevo.";
+            };
+
+            recognition.start();
+        }
+
+        async function consultarIAConRAG(promptUsuario) {
+            if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY.includes("PEGA_AQUI")) {
+                hablar("Por favor coloca tu clave de OpenRouter en el código.");
+                return;
+            }
+
+            // Buscar en la base de conocimientos si hay información relevante
+            let contextoExtra = BASE_DE_CONOCIMIENTO.join("\n");
+
+            const SYSTEM_PROMPT = `
+            Eres JARVIS, un asistente de Inteligencia Artificial fluido, amigable y muy explicativo.
+            Respondes con voz natural como si hablaras por teléfono.
+            Usa la siguiente información personalizada de tu base de conocimientos para responder al usuario si la pregunta está relacionada:
+            
+            [BASE DE CONOCIMIENTOS]:
+            ${contextoExtra}
+            
+            Instrucciones de voz:
+            - Extiéndete para explicar bien las tareas y temas complejos.
+            - Evita usar caracteres especiales como asteriscos (*), numerales (#) o guiones bajos (_).
+            `;
+
+            const url = "https://openrouter.ai/api/v1/chat/completions";
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${OPENROUTER_API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: "meta-llama/llama-3.3-70b-instruct:free",
+                        messages: [
+                            { role: "system", content: SYSTEM_PROMPT },
+                            { role: "user", content: promptUsuario }
+                        ]
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.choices && data.choices[0] && data.choices[0].message) {
+                    const respuesta = data.choices[0].message.content;
+                    const textoLimpio = respuesta.replace(/[\*#_]/g, '');
+                    hablar(textoLimpio);
+                } else {
+                    hablar("No pude procesar la respuesta en este momento.");
+                }
+
+            } catch (error) {
+                console.error("Error OpenRouter RAG:", error);
+                hablar("Error de conexión al servidor.");
+            }
+        }
+    </script>
+</body>
+</html>
